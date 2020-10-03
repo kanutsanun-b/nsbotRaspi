@@ -6,29 +6,46 @@ import requests
 
 class MetarSpeciTaf:
     def __init__(self, line_token='', time_stop=''):
-        self.metarspeci_target = "https://nsweb.tmd.go.th/#showMetars"
-        self.taf_target = "https://nsweb.tmd.go.th/#showTAFs"
+        self.driver = None
         self.line_token = line_token
         self.time_stop = time_stop # UTC Time
         self.code_metarspeci = 'initial_code'
         self.code_taf = 'initial_code'
         self.hr = 'time'
         
-    def run_MetarSpeci(self):
-        
+    def send_Line(self, msg):
+        # Function for sending code to Line application
+        while True:
+            url = 'https://notify-api.line.me/api/notify'
+            token = self.line_token
+            headers = {'content-type':'application/x-www-form-urlencoded','Authorization':'Bearer '+token}
+            r = requests.post(url, headers=headers , data = {'message':msg})
+            if r.status_code == 200:
+                break
+            else:
+                sleep(60)
+                continue
+    
+    def setupDriver(self):
         options = webdriver.ChromeOptions()
         options.headless = True
-        driver_metarspeci = webdriver.Chrome(options=options)
-        driver_metarspeci.get(self.metarspeci_target);
+        self.driver = webdriver.Chrome(options=options)
+    
+    def run_bot(self):
+        self.driver.get("https://nsweb.tmd.go.th/#showMetars")
         sleep(10)
+        self.driver.execute_script("window.open('https://nsweb.tmd.go.th/#showTAFs','new window')")
         
         while self.hr != self.time_stop:
             
-            driver_metarspeci.refresh()
-            sleep(10)
+            sleep(30)
+            dt = datetime.datetime.utcnow()
+            self.hr = dt.strftime('%H')
             
+            self.driver.switch_to_window(self.driver.window_handles[0])
+            sleep(15)
             try:
-                list_of_elements = driver_metarspeci.find_elements_by_xpath('//p[@class="js-metar"]')
+                list_of_elements = self.driver.find_elements_by_xpath('//p[@class="js-metar"]')
                 stations = [station.text for station in list_of_elements];
                 find_vtse = [i for i in stations if "VTSE" in i]
                 read = find_vtse[0]
@@ -37,88 +54,31 @@ class MetarSpeciTaf:
                     pass
                 else:
                     self.code_metarspeci = read
-                    url = 'https://notify-api.line.me/api/notify'
-                    token = self.line_token
-                    headers = {'content-type':'application/x-www-form-urlencoded','Authorization':'Bearer '+token}
-                    msg = self.code_metarspeci
-                    r = requests.post(url, headers=headers , data = {'message':msg})        
+                    self.send_Line(self.code_metarspeci)
                     print(self.code_metarspeci)
 
-                dt = datetime.datetime.utcnow()
-                self.hr = dt.strftime('%H')
-                
-                if self.hr == self.time_stop:
-                    print('Program stopped')
-                    break
-                else:
-                    sleep(40)
-                    
             except Exception as e:
-                
                 print("METAR or SPECI error: " ,e)
-                dt = datetime.datetime.utcnow()
-                self.hr = dt.strftime('%H')
-                
-                if self.hr == self.time_stop:
-                    print('Program stopped')
-                    break
-                else:
-                    sleep(40)
-                    
-        driver_metarspeci.quit()
+                pass
             
-    def run_Taf(self):
-                
-        options = webdriver.ChromeOptions()
-        options.headless = True
-        driver_taf = webdriver.Chrome(options=options)
-        driver_taf.get(self.taf_target);
-        sleep(10)
-        
-        while True:
-            
-            driver_taf.refresh()
-            sleep(10)
-            
+            self.driver.switch_to_window(self.driver.window_handles[1])
+            sleep(15)
             try:
-                list_of_elements = driver_taf.find_elements_by_xpath('//p[@class="js-taf"]')
-                stations = [station.text for station in list_of_elements];
-                find_vtse = [i for i in stations if "VTSE" in i]
-                read = find_vtse[0]
+                list_of_elements_taf = self.driver.find_elements_by_xpath('//p[@class="js-taf"]')
+                stations_taf = [station_taf.text for station_taf in list_of_elements_taf];
+                find_vtse_taf = [i for i in stations_taf if "VTSE" in i]
+                read_taf = find_vtse_taf[0]
             
-                if read == self.code_taf:
+                if read_taf == self.code_taf:
                     pass
                 else:
-                    self.code_taf = read
-                    url = 'https://notify-api.line.me/api/notify'
-                    token = self.line_token
-                    headers = {'content-type':'application/x-www-form-urlencoded','Authorization':'Bearer '+token}
-                    msg = self.code_taf
-                    r = requests.post(url, headers=headers , data = {'message':msg})        
+                    self.code_taf = read_taf
+                    self.send_Line(self.code_taf)
                     print(self.code_taf)
-
-                dt = datetime.datetime.utcnow()
-                self.hr = dt.strftime('%H')
                 
-            except Exception as e:
-                dt = datetime.datetime.utcnow()
-                self.hr = dt.strftime('%H')
-                print("TAF error: ", e)
-                
-            else:
-                print('Achieved')
-                break
-            
-        driver_taf.quit()
-            
+            except Exception as p:
+                print("TAF error: ", p)
+                pass
         
-    def loop_Taf(self):
-        
-        schedule.every().hour.at(":05").do(self.run_Taf)
-        
-        while self.hr != self.time_stop:
-            schedule.run_pending()
-            sleep(1)
-            if self.hr == self.time_stop:
-                break
-        print('Program stopped')
+        self.driver.quit()
+        print("Programs stopped")
