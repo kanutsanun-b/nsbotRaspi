@@ -32,6 +32,7 @@ class MetarSpeciTaf:
         self.driver = webdriver.Chrome(options=options)
     
     def run_bot(self):
+        self.send_Line('Online...')
         self.driver.get("https://nsweb.tmd.go.th/#showMetars")
         sleep(10)
         self.driver.execute_script("window.open('https://nsweb.tmd.go.th/#showTAFs','new window')")
@@ -81,4 +82,4 @@ class MetarSpeciTaf:
                 pass
         
         self.driver.quit()
-        print("Programs stopped")
+        self.send_Line('Offline...')
